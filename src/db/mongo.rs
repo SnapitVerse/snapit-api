@@ -12,7 +12,7 @@ pub async fn init_db() -> Result<Client> {
     Ok(client)
 }
 
-pub async fn add_nft(client: Client, token: NFT) -> Result<()> {
+pub async fn add_nft(client: Client, token: AddNFTInput) -> Result<()> {
     let collection = client.database("snapit").collection("snapit-nft");
 
     let metadata_bson = bson::to_bson(&token.metadata).map_err(|e| anyhow::Error::new(e))?; // Convert bson error to anyhow error
@@ -64,7 +64,7 @@ pub struct Metadata {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct NFT {
+pub struct AddNFTInput {
     pub token_id: u64,
     pub metadata: Metadata,
 }

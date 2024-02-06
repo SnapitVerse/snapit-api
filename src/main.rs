@@ -1,10 +1,12 @@
-use db::mongo::{add_nft, get_nft, Metadata, NFT};
+use db::mongo::{add_nft, get_nft, AddNFTInput, Metadata};
 use ethers::abi::Abi;
 use ethers::{prelude::*, utils::hex};
+use graph::graph::build_graphql_query;
 use mongodb::bson::doc;
 use mongodb::Client;
+use reqwest;
 use serde::{Deserialize, Serialize};
-use serde_json;
+use serde_json::{self, Value};
 use std::str::FromStr;
 use std::sync::Arc;
 use warp::http::StatusCode;
@@ -12,6 +14,9 @@ use warp::Filter;
 
 mod db {
     pub mod mongo;
+}
+mod graph {
+    pub mod graph;
 }
 
 const CONTRACT_ADDRESS: &str = "0x5fbdb2315678afecb367f032d93f642f64180aa3";
@@ -62,10 +67,16 @@ async fn main() {
         .and(warp::path::param())
         .and_then(get_nft_metadata);
 
+    let get_owner_tokens_route = warp::get()
+        .and(warp::path("get-owner-tokens"))
+        .and(warp::query::<GetOwnerTokensQueryParams>())
+        .and_then(get_owner_tokens_handler);
+
     // Combine the routes
     let routes = get_route
         .or(post_route)
         .or(mint_nft_route)
+        .or(get_owner_tokens_route)
         .or(get_nft_metadata_route);
 
     // Start the server
@@ -100,7 +111,7 @@ async fn mint_nft(
 
     let tx_hash = pending_tx.tx_hash();
 
-    let token_nft = NFT {
+    let token_nft = AddNFTInput {
         token_id: req.token_id,
         metadata: req.metadata,
     };
@@ -145,6 +156,50 @@ async fn get_nft_metadata(
     }
 }
 
+async fn get_owner_tokens_handler(
+    params: GetOwnerTokensQueryParams,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let client = reqwest::Client::new();
+    let owner_address = params.owner_address;
+    let query = build_graphql_query(&owner_address);
+    let graphql_url = "http://localhost:8000/subgraphs/name/basarrcan/firstsubgraph"; // Replace with your actual GraphQL endpoint
+
+    let res = client
+        .post(graphql_url)
+        .json(&serde_json::json!({"query": query}))
+        .send()
+        .await
+        .map_err(|_| warp::reject::custom(ServerError))?
+        .json::<Value>()
+        .await
+        .map_err(|_| warp::reject::custom(ServerError))?; // Handle HTTP request error
+
+    let token_balances = res["data"]["tokenBalances"]
+        .as_array()
+        .ok_or("Invalid response format")
+        .map_err(|_| warp::reject::custom(ServerError))?;
+
+    let transformed: Vec<Value> = token_balances
+        .iter()
+        .filter_map(|tb| tb["token"].as_object())
+        .map(|token| {
+            serde_json::json!({
+                "id": token["id"],
+                "metadata": token["metadataUri"]
+            })
+        })
+        .collect();
+
+    // let response_body = transformed
+    //     .text()
+    //     .await
+    //     .map_err(|_| warp::reject::custom(ServerError))?; // Handle response error
+
+    let json_reply = warp::reply::json(&transformed);
+
+    Ok(warp::reply::with_status(json_reply, StatusCode::OK))
+}
+
 #[derive(Debug)]
 struct ServerError;
 impl warp::reject::Reject for ServerError {}
@@ -154,6 +209,11 @@ struct MintUniqueTokenRequest {
     owner_address: String,
     token_id: u64,
     metadata: Metadata, // Accepting metadata as a structured object
+}
+
+#[derive(Deserialize)]
+struct GetOwnerTokensQueryParams {
+    owner_address: String,
 }
 
 #[derive(Serialize)]
@@ -175,10 +235,6 @@ struct EchoRequest {
 struct EchoResponse {
     message: String,
 }
-
-// struct TokenInfoRequest {
-//     token_id: U256,
-// }
 
 #[derive(Serialize)]
 struct POSTResponse {
