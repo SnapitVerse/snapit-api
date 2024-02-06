@@ -9,14 +9,18 @@ This project provides API for interacting with Snapit contracts.
 
 ### To install Mongodb:
 
-- brew tap mongodb/brew
-- brew update
-- brew install mongodb-community@7.0
+```
+brew tap mongodb/brew
+brew update
+brew install mongodb-community@7.0
+```
 
 ### To run/stop Mongodb:
 
-- brew services start mongodb-community@7.0
-- brew services stop mongodb-community@7.0
+```
+brew services start mongodb-community@7.0
+brew services stop mongodb-community@7.0
+```
 
 ### To run API:
 
