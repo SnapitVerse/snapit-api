@@ -5,6 +5,18 @@ This project provides API for interacting with Snapit contracts.
 ### Prerequisites:
 
 - Install Rust https://www.rust-lang.org/tools/install
+- Install Mongodb
+
+### To install Mongodb:
+
+- brew tap mongodb/brew
+- brew update
+- brew install mongodb-community@7.0
+
+### To run/stop Mongodb:
+
+- brew services start mongodb-community@7.0
+- brew services stop mongodb-community@7.0
 
 ### To run API:
 
