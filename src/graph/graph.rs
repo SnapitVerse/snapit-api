@@ -27,6 +27,20 @@ pub fn graphql_token_owner_query(token_id: &str) -> String {
     )
 }
 
+pub fn graphql_auction_bid_query(token_id: &str, start_time: &str, end_time: &str) -> String {
+    format!(
+        r#"{{
+        bids(where: {{tokenId: "{}", blockTimestamp_gte: "{}",  blockTimestamp_lte: "{}" }}) {{
+          tokenId
+          price
+          bidder
+          blockTimestamp
+        }}
+      }}"#,
+        token_id, start_time, end_time
+    )
+}
+
 pub async fn reqwest_graphql_query(query: String, graphql_url: &str) -> Result<Value, ServerError> {
     let reqwest_client = reqwest::Client::new();
     let res = reqwest_client

@@ -11,9 +11,9 @@ use ethers::{
     types::{Address, H256, U256},
 };
 
-use crate::CHAIN_URL;
 #[async_recursion]
 pub async fn send_transaction_with_retry(
+    chain_url: &str,
     contract: &Contract<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
     owner_address: Address,
     token_id: U256,
@@ -27,7 +27,7 @@ pub async fn send_transaction_with_retry(
         return Err(Error::msg("Max retries exceeded").into());
     }
 
-    let provider = Provider::<Http>::try_from(CHAIN_URL).unwrap();
+    let provider = Provider::<Http>::try_from(chain_url).unwrap();
 
     let mut contract_call = contract.method::<_, H256>(
         "mintUniqueToken",
@@ -51,10 +51,9 @@ pub async fn send_transaction_with_retry(
         Ok(pending_tx) => Ok(pending_tx.tx_hash()),
         Err(e) => {
             if let Some(new_nonce) = extract_nonce_from_error(&e.to_string()) {
-                println!("Nonce too low, retrying with nonce: {}", new_nonce);
-
                 // Recursively retry with the updated nonce
                 send_transaction_with_retry(
+                    chain_url,
                     contract,
                     owner_address,
                     token_id,
@@ -66,6 +65,7 @@ pub async fn send_transaction_with_retry(
                 .await
             } else if is_underpriced_error(&e.to_string()) {
                 send_transaction_with_retry(
+                    chain_url,
                     contract,
                     owner_address,
                     token_id,

@@ -4,6 +4,7 @@ use mongodb::bson::{self, doc};
 use mongodb::{options::ClientOptions, Client};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::Arc;
 
 const COLLECTION_NAME: &str = "snapit-nft-testnet";
 
@@ -15,7 +16,7 @@ pub async fn init_db() -> Result<Client> {
     Ok(client)
 }
 
-pub async fn add_nft(client: Client, token: AddNFTInput) -> Result<()> {
+pub async fn add_nft(client: Arc<Client>, token: AddNFTInput) -> Result<()> {
     let collection = client.database("snapit").collection(COLLECTION_NAME);
 
     let metadata_bson = bson::to_bson(&token.metadata).map_err(|e| anyhow::Error::new(e))?; // Convert bson error to anyhow error
@@ -27,8 +28,6 @@ pub async fn add_nft(client: Client, token: AddNFTInput) -> Result<()> {
         "metadata": metadata_bson,
     };
 
-    // print!("{:?}", new_doc);
-
     collection
         .insert_one(new_doc, None)
         .await
@@ -37,7 +36,7 @@ pub async fn add_nft(client: Client, token: AddNFTInput) -> Result<()> {
     Ok(())
 }
 
-pub async fn find_one_nft(client: Client, token_id: u64) -> Result<Option<Value>> {
+pub async fn find_one_nft(client: Arc<Client>, token_id: u64) -> Result<Option<Value>> {
     let collection = client
         .database("snapit")
         .collection::<bson::Document>(COLLECTION_NAME);
@@ -62,7 +61,7 @@ pub async fn find_one_nft(client: Client, token_id: u64) -> Result<Option<Value>
     }
 }
 
-pub async fn find_nfts(client: Client, token_ids: Vec<u64>) -> Result<Vec<Value>> {
+pub async fn find_nfts(client: Arc<Client>, token_ids: Vec<u64>) -> Result<Vec<Value>> {
     let collection = client
         .database("snapit")
         .collection::<bson::Document>(COLLECTION_NAME);
@@ -88,10 +87,6 @@ pub async fn find_nfts(client: Client, token_ids: Vec<u64>) -> Result<Vec<Value>
         let json_value: Value = bson::Bson::Document(metadata_json).into();
         results.push(json_value);
     }
-
-    // print!("PRINT");
-
-    // println!("{:?}", results);
 
     Ok(results)
 }
