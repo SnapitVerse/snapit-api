@@ -30,7 +30,11 @@ pub fn graphql_token_owner_query(token_id: &str) -> String {
 pub fn graphql_auction_bid_query(token_id: &str, start_time: &str, end_time: &str) -> String {
     format!(
         r#"{{
-        bids(where: {{tokenId: "{}", blockTimestamp_gte: "{}",  blockTimestamp_lte: "{}" }}) {{
+        bids(
+          orderBy: blockTimestamp
+          orderDirection: desc
+          where: {{tokenId: "{}", blockTimestamp_gte: "{}",  blockTimestamp_lte: "{}" }}
+        ) {{
           tokenId
           price
           bidder
