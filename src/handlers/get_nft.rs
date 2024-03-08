@@ -1,5 +1,6 @@
-use crate::db::mongo::find_one_nft;
+use crate::db::mongo::{contract_metadata, find_one_nft};
 use crate::graph::graph::{graphql_token_owner_query, reqwest_graphql_query};
+use anyhow::anyhow;
 use mongodb::Client;
 use serde::Deserialize;
 use serde_json::{self};
@@ -23,7 +24,19 @@ pub async fn get_nft(
     let with_owner = params.with_owner.map(|v| v == "true").unwrap_or(false);
 
     let id_str = id_json.trim_end_matches(".json");
-    let query = graphql_token_owner_query(id_str);
+
+    if id_str == "contract-metadata" {
+        return match contract_metadata(client.clone()).await {
+            Ok(Some(metadata)) => Ok(warp::reply::with_status(
+                warp::reply::json(&metadata),
+                StatusCode::OK,
+            )),
+            Ok(None) => Err(warp::reject::custom(ServerError::from(anyhow!(
+                "Contract metadata not found"
+            )))),
+            Err(e) => Err(warp::reject::custom(ServerError::from(e))),
+        };
+    }
 
     // Attempt to parse the numeric part as u64
     match id_str.parse::<u64>() {
@@ -33,13 +46,15 @@ pub async fn get_nft(
                 // Cast to u64 if needed
                 Ok(Some(mut metadata)) => {
                     if with_owner {
+                        let query = graphql_token_owner_query(id_str);
+
                         let res =
                             reqwest_graphql_query(query, config.graph_url_token.as_str()).await?;
 
                         let token_balances = res["data"]["tokenBalances"]
                             .as_array()
                             .ok_or("Invalid response format")
-                            .map_err(|_| warp::reject::custom(ServerError))?;
+                            .map_err(|e| warp::reject::custom(ServerError::from(anyhow!(e))))?;
 
                         let owner_address: &str = match token_balances.get(0) {
                             Some(tb) => tb["owner"].as_str().unwrap_or("default"),
@@ -62,7 +77,7 @@ pub async fn get_nft(
                     warp::reply::json(&"NFT not found"),
                     StatusCode::NOT_FOUND,
                 )),
-                Err(_e) => Err(warp::reject::custom(ServerError)),
+                Err(e) => Err(warp::reject::custom(ServerError::from(e))),
             }
         }
         Err(_) => {

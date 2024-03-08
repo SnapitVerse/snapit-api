@@ -4,6 +4,7 @@ use crate::graph::graph::{graphql_owner_tokens_query, reqwest_graphql_query};
 use crate::ServerError;
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use mongodb::Client;
 use serde::Deserialize;
 use serde_json::{self, Value};
@@ -27,7 +28,7 @@ pub async fn get_owner_tokens_handler(
     let token_balances = res["data"]["tokenBalances"]
         .as_array()
         .ok_or("Invalid response format")
-        .map_err(|_| warp::reject::custom(ServerError))?;
+        .map_err(|e| warp::reject::custom(ServerError::from(anyhow!(e))))?;
 
     // Extract token IDs from token_balances
     let token_ids: Vec<u64> = token_balances
@@ -39,7 +40,7 @@ pub async fn get_owner_tokens_handler(
     // Call find_nfts with the extracted token IDs
     let nfts = find_nfts(client, token_ids)
         .await
-        .map_err(|_| warp::reject::custom(ServerError))?;
+        .map_err(|e| warp::reject::custom(ServerError::from(e)))?;
 
     let transformed: Vec<Value> = nfts
         .iter()

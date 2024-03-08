@@ -52,9 +52,9 @@ pub async fn reqwest_graphql_query(query: String, graphql_url: &str) -> Result<V
         .json(&serde_json::json!({"query": query}))
         .send()
         .await
-        .map_err(|_| ServerError)?
+        .map_err(|e| ServerError::from(e))?
         .json::<Value>()
         .await
-        .map_err(|_| ServerError)?; // Handle HTTP request error
+        .map_err(|e| ServerError::from(e))?; // Handle HTTP request error
     Ok(res)
 }

@@ -1,131 +1,108 @@
-use anyhow::{Error, Result}; // Simplified error handling with anyhow
-use async_recursion::async_recursion;
+use std::sync::Arc;
+
+use anyhow::Result; // Simplified error handling with anyhow
+
+use ethers::contract::FunctionCall;
 use ethers::core::k256::ecdsa::SigningKey;
-use ethers::providers::Middleware;
-use ethers::types::Bytes;
+use ethers::middleware::gas_escalator::{Frequency, GeometricGasPrice};
+// use ethers::middleware::gas_oracle::{
+//     EthGasStation, Etherchain, Etherscan, GasCategory, GasNow, GasOracleMiddleware,
+// };
+use ethers::middleware::{GasEscalatorMiddleware, MiddlewareBuilder, NonceManagerMiddleware};
+
+use ethers::signers::{LocalWallet, Signer};
+use ethers::types::TransactionReceipt;
 use ethers::{
-    contract::Contract,
     middleware::SignerMiddleware,
     providers::{Http, Provider},
     signers::Wallet,
-    types::{Address, H256, U256},
+    types::H256,
 };
+use serde::Serialize;
 
-#[async_recursion]
-pub async fn send_transaction_with_retry(
-    chain_url: &str,
-    contract: &Contract<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
-    owner_address: Address,
-    token_id: U256,
-    data_bytes: Bytes,
-    nonce: Option<U256>,
-    gas_price: Option<U256>,
-    retries: Option<u32>,
-) -> Result<H256> {
-    let retry = retries.unwrap_or(0);
-    if retry >= 5 {
-        return Err(Error::msg("Max retries exceeded").into());
-    }
+use crate::constants::Constants;
+use crate::ServerError;
 
-    let provider = Provider::<Http>::try_from(chain_url).unwrap();
+// type EthersClient = NonceManagerMiddleware<
+//     SignerMiddleware<
+//         GasOracleMiddleware<GasEscalatorMiddleware<Provider<Http>>, GasNow>,
+//         Wallet<SigningKey>,
+//     >,
+// >;
 
-    let mut contract_call = contract.method::<_, H256>(
-        "mintUniqueToken",
-        (owner_address, token_id, data_bytes.clone()),
-    )?;
+// type EthersContract = NonceManagerMiddleware<
+//     SignerMiddleware<
+//         GasOracleMiddleware<GasEscalatorMiddleware<Provider<Http>>, GasNow>,
+//         Wallet<SigningKey>,
+//     >,
+// >;
 
-    if let Some(nonce_option) = nonce {
-        contract_call = contract_call.nonce(nonce_option)
-    }
+type EthersClient = NonceManagerMiddleware<
+    SignerMiddleware<
+        //GasOracleMiddleware<
+        GasEscalatorMiddleware<Provider<Http>>,
+        //GasNow>,
+        Wallet<SigningKey>,
+    >,
+>;
 
-    let gas_price_from_chain = match gas_price {
-        Some(price) => price,
-        None => provider.get_gas_price().await?,
-    };
-    contract_call = contract_call.gas_price(gas_price_from_chain);
+type EthersContract = NonceManagerMiddleware<
+    SignerMiddleware<
+        // GasOracleMiddleware <
+        GasEscalatorMiddleware<Provider<Http>>,
+        //>, GasNow>,
+        Wallet<SigningKey>,
+    >,
+>;
 
-    // let tx = match
+// type EthersContractInstance = ContractInstance<Arc<EthersContract>, EthersContract>;
 
+type EthersContractCall = FunctionCall<Arc<EthersContract>, EthersContract, H256>;
+
+pub async fn get_ethers_client() -> Result<Arc<EthersClient>> {
+    let config = Constants::new();
+
+    let escalator = GeometricGasPrice::new(1.125, 60u64, None::<u64>);
+    let signer = config.private_key.parse::<LocalWallet>().unwrap();
+    let provider = Provider::<Http>::try_from(config.chain_url.as_str()).unwrap();
+
+    let signer_address = signer.address();
+
+    // let category = GasCategory::Standard;
+    // let oracle = GasNow::new().category(category);
+
+    let provider =
+        provider.wrap_into(|p| GasEscalatorMiddleware::new(p, escalator, Frequency::PerBlock));
+    // .gas_oracle(oracle);
+    let provider = SignerMiddleware::new_with_provider_chain(provider, signer)
+        .await
+        .unwrap();
+    let provider = provider.nonce_manager(signer_address);
+    Ok(Arc::new(provider))
+}
+
+pub async fn send_transaction(
+    contract_call: EthersContractCall,
+    wait_confirmation: bool,
+) -> Result<SendTransactionResult, ServerError> {
     // Try directly calling the method and setting the nonce without intermediate binding
-    let sent_trx = match contract_call.send().await {
-        Ok(pending_tx) => Ok(pending_tx.tx_hash()),
-        Err(e) => {
-            if let Some(new_nonce) = extract_nonce_from_error(&e.to_string()) {
-                // Recursively retry with the updated nonce
-                send_transaction_with_retry(
-                    chain_url,
-                    contract,
-                    owner_address,
-                    token_id,
-                    data_bytes, // Consider cloning if needed
-                    Some(new_nonce),
-                    Some(gas_price_from_chain),
-                    Some(retry + 1),
-                )
-                .await
-            } else if is_underpriced_error(&e.to_string()) {
-                send_transaction_with_retry(
-                    chain_url,
-                    contract,
-                    owner_address,
-                    token_id,
-                    data_bytes, // Consider cloning if needed
-                    nonce,
-                    Some(increase_gas_price_by_10_percent(gas_price_from_chain)),
-                    Some(retry + 1),
-                )
-                .await
-            } else {
-                Err(anyhow::Error::from(e).into())
+    match contract_call.send().await {
+        Ok(pending_tx) => {
+            let tx_result = pending_tx;
+            if wait_confirmation {
+                let tx_result = tx_result.await?.unwrap();
+                return Ok(SendTransactionResult::Receipt(tx_result));
             }
+
+            // pending_tx.
+            Ok(SendTransactionResult::Hash(tx_result.tx_hash()))
         }
-    };
-    sent_trx
-}
-
-fn extract_nonce_from_error(error_message: &str) -> Option<U256> {
-    // Look for the pattern that precedes the nonce value in the error message
-    let nonce_pattern = "next nonce ";
-    if let Some(start_index) = error_message.find(nonce_pattern) {
-        // Calculate the start position of the nonce value
-        let nonce_start = start_index + nonce_pattern.len();
-        // Extract the substring starting from the nonce value
-        let nonce_substring = &error_message[nonce_start..];
-
-        // Use whitespace or comma as potential delimiters for the end of the nonce value
-        let nonce_end = nonce_substring
-            .find(|c: char| c.is_whitespace() || c == ',')
-            .unwrap_or(nonce_substring.len());
-
-        // Extract the nonce value as a string
-        let nonce_str = &nonce_substring[..nonce_end];
-
-        // Attempt to parse the nonce value as a U256
-        match nonce_str.parse::<u64>() {
-            Ok(nonce_value) => Some(U256::from(nonce_value)),
-            Err(_) => None, // Return None if parsing fails
-        }
-    } else {
-        // If the pattern is not found, return None
-        None
+        Err(e) => Err(ServerError::from(e)),
     }
 }
 
-fn is_underpriced_error(error_message: &str) -> bool {
-    // Look for the pattern that precedes the nonce value in the error message
-    let pattern = "replacement transaction underpriced";
-    if let Some(_) = error_message.find(pattern) {
-        return true;
-    }
-    false
-}
-
-fn increase_gas_price_by_10_percent(gas_price: U256) -> U256 {
-    // Calculate 10% of the current gas price
-    let ten_percent = gas_price / U256::from(10);
-
-    // Add the 10% increase to the original gas price
-    let increased_gas_price = gas_price + ten_percent;
-
-    increased_gas_price
+#[derive(Serialize)]
+pub enum SendTransactionResult {
+    Receipt(TransactionReceipt),
+    Hash(ethers::types::TxHash),
 }

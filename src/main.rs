@@ -9,13 +9,13 @@ use std::sync::Arc;
 use constants::Constants;
 use ethers::core::k256::ecdsa::SigningKey;
 use ethers::middleware::SignerMiddleware;
-use ethers::providers::{Http, Provider};
+use ethers::providers::{Http, Middleware, Provider, ProviderError};
 use ethers::signers::{LocalWallet, Signer, Wallet};
 use ethers::types::H256;
 use handlers::get_auction::{get_auction, GetAuctionQueryParams};
 use handlers::get_nft::{get_nft, GetNftQueryParams};
 use handlers::get_owner_tokens::{get_owner_tokens_handler, GetOwnerTokensQueryParams};
-use handlers::mint_nft::mint_nft;
+use handlers::mint_nft::mint_nft_handler;
 use mongodb::bson::doc;
 use mongodb::Client;
 use serde::{Deserialize, Serialize};
@@ -62,10 +62,9 @@ async fn main() {
         .and(warp::path("api"))
         .and(warp::path("mint"))
         .and(warp::body::json())
-        .and(ethers_client_filter.clone())
         .and(mongo_client_filter.clone())
         .and(config_filter.clone())
-        .and_then(mint_nft);
+        .and_then(mint_nft_handler);
 
     let get_nft_route = warp::get()
         .and(mongo_client_filter.clone())
@@ -126,7 +125,53 @@ fn with_ethers_client(
 }
 
 #[derive(Debug)]
-pub struct ServerError;
+pub struct ServerError {
+    _reason: String,
+}
+
+impl From<anyhow::Error> for ServerError {
+    fn from(err: anyhow::Error) -> ServerError {
+        ServerError {
+            _reason: err.to_string(),
+        }
+    }
+}
+
+impl From<reqwest::Error> for ServerError {
+    fn from(err: reqwest::Error) -> ServerError {
+        ServerError {
+            _reason: err.to_string(),
+        }
+    }
+}
+
+impl<M> From<ethers::contract::ContractError<M>> for ServerError
+where
+    M: Middleware,
+{
+    fn from(err: ethers::contract::ContractError<M>) -> ServerError {
+        ServerError {
+            _reason: err.to_string(),
+        }
+    }
+}
+
+impl From<ProviderError> for ServerError {
+    fn from(err: ProviderError) -> ServerError {
+        ServerError {
+            _reason: err.to_string(),
+        }
+    }
+}
+
+impl From<ethers::contract::AbiError> for ServerError {
+    fn from(err: ethers::contract::AbiError) -> ServerError {
+        ServerError {
+            _reason: err.to_string(),
+        }
+    }
+}
+
 impl warp::reject::Reject for ServerError {}
 
 #[derive(Serialize)]

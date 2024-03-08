@@ -1,4 +1,5 @@
 use crate::graph::graph::{graphql_auction_bid_query, reqwest_graphql_query};
+use anyhow::anyhow;
 use ethers::prelude::*;
 use serde::de::Error as DeError;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -67,7 +68,7 @@ pub async fn get_auction(
             let bids = res["data"]["bids"]
                 .as_array()
                 .ok_or("Invalid response format")
-                .map_err(|_| warp::reject::custom(ServerError))?;
+                .map_err(|e| warp::reject::custom(ServerError::from(anyhow!(e))))?;
 
             let bid_history: Vec<Bid> = bids
                 .iter()
@@ -88,7 +89,7 @@ pub async fn get_auction(
                 StatusCode::OK,
             ))
         }
-        Err(_) => Err(warp::reject::custom(ServerError)),
+        Err(e) => Err(warp::reject::custom(ServerError::from(e))),
     }
 }
 
