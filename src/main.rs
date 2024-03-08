@@ -1,40 +1,47 @@
-use db::mongo::{add_nft, get_nft, AddNFTInput, Metadata};
-use ethers::abi::Abi;
-use ethers::{prelude::*, utils::hex};
-use graph::graph::build_graphql_query;
+mod chain;
+mod constants;
+mod db;
+mod graph;
+mod handlers;
+
+use std::sync::Arc;
+
+use constants::Constants;
+use ethers::core::k256::ecdsa::SigningKey;
+use ethers::middleware::SignerMiddleware;
+use ethers::providers::{Http, Middleware, Provider, ProviderError};
+use ethers::signers::{LocalWallet, Signer, Wallet};
+use ethers::types::H256;
+use handlers::get_auction::{get_auction, GetAuctionQueryParams};
+use handlers::get_nft::{get_nft, GetNftQueryParams};
+use handlers::get_owner_tokens::{get_owner_tokens_handler, GetOwnerTokensQueryParams};
+use handlers::mint_nft::mint_nft_handler;
 use mongodb::bson::doc;
 use mongodb::Client;
-use reqwest;
 use serde::{Deserialize, Serialize};
-use serde_json::{self, Value};
-use std::str::FromStr;
-use std::sync::Arc;
-use warp::http::StatusCode;
 use warp::Filter;
-
-mod db {
-    pub mod mongo;
-}
-mod graph {
-    pub mod graph;
-}
-
-const CONTRACT_ADDRESS: &str = "0x5fbdb2315678afecb367f032d93f642f64180aa3";
-const ABI_PATH: &[u8; 8420] = include_bytes!("abi/SnapitNFT.json");
-const PRIVATE_KEY: &str = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
 #[tokio::main]
 async fn main() {
-    let mongo_client = db::mongo::init_db().await.expect("Failed to initialize DB");
+    let config = constants::Constants::new();
+    let config = Arc::new(config);
 
-    let provider = Provider::<Http>::try_from("http://localhost:8545").unwrap();
-    let chain_id: u64 = 31337; // Explicitly type the chain ID as `u64`
-    let wallet: LocalWallet = PRIVATE_KEY
+    let mongo_client = db::mongo::init_db().await.expect("Failed to initialize DB");
+    let mongo_client = Arc::new(mongo_client);
+
+    let provider = Provider::<Http>::try_from(config.chain_url.as_str()).unwrap();
+
+    let wallet: LocalWallet = config
+        .private_key
         .parse::<LocalWallet>()
         .unwrap()
-        .with_chain_id(chain_id); // Set this to the chain ID of your network
+        .with_chain_id(config.chain_id); // Set this to the chain ID of your network
 
     let ethers_client = Arc::new(SignerMiddleware::new(provider, wallet));
+
+    let config_filter = with_config(config.clone());
+    let mongo_client_filter = with_mongo_client(mongo_client);
+    let ethers_client_filter = with_ethers_client(ethers_client);
 
     // GET endpoint at /
     let get_route = warp::get()
@@ -51,170 +58,121 @@ async fn main() {
             })
         });
 
-    let mint_nft_client = ethers_client.clone();
-    let add_nft_client = mongo_client.clone();
     let mint_nft_route = warp::post()
-        .and(warp::path("mint_nft"))
+        .and(warp::path("api"))
+        .and(warp::path("mint"))
         .and(warp::body::json())
-        .and(warp::any().map(move || mint_nft_client.clone()))
-        .and(warp::any().map(move || add_nft_client.clone()))
-        .and_then(mint_nft);
+        .and(mongo_client_filter.clone())
+        .and(config_filter.clone())
+        .and_then(mint_nft_handler);
 
-    let get_nft_client = mongo_client.clone();
-    let get_nft_metadata_route = warp::get()
-        .and(warp::path("get_nft_metadata"))
-        .and(warp::any().map(move || get_nft_client.clone()))
-        .and(warp::path::param())
-        .and_then(get_nft_metadata);
+    let get_nft_route = warp::get()
+        .and(mongo_client_filter.clone())
+        .and(warp::path("api"))
+        .and(warp::path("token"))
+        .and(warp::path::param::<String>()) // Capture {id}.json as a String
+        .and(warp::query::<GetNftQueryParams>()) // Use query to capture with_owner
+        .and(config_filter.clone())
+        .and_then(get_nft);
 
     let get_owner_tokens_route = warp::get()
+        .and(mongo_client_filter.clone())
+        .and(warp::path("api"))
         .and(warp::path("get-owner-tokens"))
         .and(warp::query::<GetOwnerTokensQueryParams>())
+        .and(config_filter.clone())
         .and_then(get_owner_tokens_handler);
+
+    let get_auction_route = warp::get()
+        .and(warp::path("api"))
+        .and(warp::path("auction"))
+        .and(ethers_client_filter.clone())
+        .and(warp::query::<GetAuctionQueryParams>()) // Use query to capture with_owner
+        .and(config_filter.clone())
+        .and_then(get_auction);
 
     // Combine the routes
     let routes = get_route
         .or(post_route)
         .or(mint_nft_route)
         .or(get_owner_tokens_route)
-        .or(get_nft_metadata_route);
+        .or(get_nft_route)
+        .or(get_auction_route);
 
     // Start the server
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
 
-async fn mint_nft(
-    req: MintUniqueTokenRequest,
-    ethers_client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
-    mongo_client: Client,
-) -> Result<impl warp::Reply, warp::Rejection> {
-    let abi: Abi = serde_json::from_slice(ABI_PATH).unwrap();
-
-    let contract_address = Address::from_str(CONTRACT_ADDRESS).unwrap();
-
-    let contract = Contract::new(contract_address, abi, ethers_client);
-
-    let metadata_json = serde_json::to_string(&req.metadata).unwrap();
-    let metadata_hex = hex::encode(metadata_json);
-
-    let data_bytes = Bytes::from(hex::decode(metadata_hex).expect("Invalid hex"));
-
-    let owner_address = Address::from_str(&req.owner_address).unwrap();
-
-    let token_id = U256::from(req.token_id);
-
-    let contract_call = contract
-        .method::<_, H256>("mintUniqueToken", (owner_address, token_id, data_bytes))
-        .unwrap();
-
-    let pending_tx = contract_call.send().await.unwrap();
-
-    let tx_hash = pending_tx.tx_hash();
-
-    let token_nft = AddNFTInput {
-        token_id: req.token_id,
-        metadata: req.metadata,
-    };
-
-    // Create a response object
-    let _response = TransactionResponse {
-        transaction_hash: tx_hash,
-    };
-
-    match add_nft(mongo_client, token_nft).await {
-        Ok(()) => Ok(warp::reply::with_status(
-            warp::reply::json(&"NFT added successfully"),
-            StatusCode::CREATED,
-        )),
-        Err(e) => {
-            println!("Error adding NFT: {:?}", e);
-            // Properly return a Rejection in case of error
-
-            Err(warp::reject::custom(ServerError))
-        }
-    }
+fn with_mongo_client(
+    client: Arc<Client>,
+) -> impl Filter<Extract = (Arc<Client>,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || client.clone())
 }
 
-async fn get_nft_metadata(
-    client: Client,
-    token_id: u64, // Ensure this matches the type expected by your MongoDB function
-) -> Result<impl warp::Reply, warp::Rejection> {
-    match get_nft(client, token_id as u64).await {
-        // Cast to u64 if needed
-        Ok(Some(metadata)) => Ok(warp::reply::with_status(
-            warp::reply::json(&metadata),
-            StatusCode::OK,
-        )),
-        Ok(None) => Ok(warp::reply::with_status(
-            warp::reply::json(&"NFT not found"),
-            StatusCode::NOT_FOUND,
-        )),
-        Err(e) => {
-            println!("Error fetching NFT metadata: {:?}", e);
-            Err(warp::reject::custom(ServerError))
-        }
-    }
+fn with_config(
+    config: Arc<Constants>,
+) -> impl Filter<Extract = (Arc<Constants>,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || config.clone())
 }
 
-async fn get_owner_tokens_handler(
-    params: GetOwnerTokensQueryParams,
-) -> Result<impl warp::Reply, warp::Rejection> {
-    let client = reqwest::Client::new();
-    let owner_address = params.owner_address;
-    let query = build_graphql_query(&owner_address);
-    let graphql_url = "http://localhost:8000/subgraphs/name/basarrcan/firstsubgraph"; // Replace with your actual GraphQL endpoint
-
-    let res = client
-        .post(graphql_url)
-        .json(&serde_json::json!({"query": query}))
-        .send()
-        .await
-        .map_err(|_| warp::reject::custom(ServerError))?
-        .json::<Value>()
-        .await
-        .map_err(|_| warp::reject::custom(ServerError))?; // Handle HTTP request error
-
-    let token_balances = res["data"]["tokenBalances"]
-        .as_array()
-        .ok_or("Invalid response format")
-        .map_err(|_| warp::reject::custom(ServerError))?;
-
-    let transformed: Vec<Value> = token_balances
-        .iter()
-        .filter_map(|tb| tb["token"].as_object())
-        .map(|token| {
-            serde_json::json!({
-                "id": token["id"],
-                "metadata": token["metadataUri"]
-            })
-        })
-        .collect();
-
-    // let response_body = transformed
-    //     .text()
-    //     .await
-    //     .map_err(|_| warp::reject::custom(ServerError))?; // Handle response error
-
-    let json_reply = warp::reply::json(&transformed);
-
-    Ok(warp::reply::with_status(json_reply, StatusCode::OK))
+fn with_ethers_client(
+    client: Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,
+) -> impl Filter<
+    Extract = (Arc<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>,),
+    Error = std::convert::Infallible,
+> + Clone {
+    warp::any().map(move || client.clone())
 }
 
 #[derive(Debug)]
-struct ServerError;
+pub struct ServerError {
+    _reason: String,
+}
+
+impl From<anyhow::Error> for ServerError {
+    fn from(err: anyhow::Error) -> ServerError {
+        ServerError {
+            _reason: err.to_string(),
+        }
+    }
+}
+
+impl From<reqwest::Error> for ServerError {
+    fn from(err: reqwest::Error) -> ServerError {
+        ServerError {
+            _reason: err.to_string(),
+        }
+    }
+}
+
+impl<M> From<ethers::contract::ContractError<M>> for ServerError
+where
+    M: Middleware,
+{
+    fn from(err: ethers::contract::ContractError<M>) -> ServerError {
+        ServerError {
+            _reason: err.to_string(),
+        }
+    }
+}
+
+impl From<ProviderError> for ServerError {
+    fn from(err: ProviderError) -> ServerError {
+        ServerError {
+            _reason: err.to_string(),
+        }
+    }
+}
+
+impl From<ethers::contract::AbiError> for ServerError {
+    fn from(err: ethers::contract::AbiError) -> ServerError {
+        ServerError {
+            _reason: err.to_string(),
+        }
+    }
+}
+
 impl warp::reject::Reject for ServerError {}
-
-#[derive(Deserialize)]
-struct MintUniqueTokenRequest {
-    owner_address: String,
-    token_id: u64,
-    metadata: Metadata, // Accepting metadata as a structured object
-}
-
-#[derive(Deserialize)]
-struct GetOwnerTokensQueryParams {
-    owner_address: String,
-}
 
 #[derive(Serialize)]
 struct TransactionResponse {
