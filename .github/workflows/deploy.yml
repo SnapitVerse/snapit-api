@@ -27,7 +27,7 @@ jobs:
 
       - name: Deploy to EC2
         run: |
-          ssh -o StrictHostKeyChecking=no ec2-user@your-ec2-instance-ip << 'EOF'
+          ssh -o StrictHostKeyChecking=no ubuntu@13.49.240.205 << 'EOF'
             cd home/ubuntu/snapit-api
             git pull
             cargo build --release
