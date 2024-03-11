@@ -19,7 +19,7 @@ jobs:
       - name: Deploy to EC2
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@13.50.252.165 << 'EOF'
-            cd home/ubuntu/snapit-api
+            cd /home/ubuntu/snapit-api
             echo ETH_SEPOLIA_NFT_ADDRESS=${{ secrets.ETH_SEPOLIA_NFT_ADDRESS }} > .env
             echo BSC_TEST_NFT_ADDRESS=${{ secrets.BSC_TEST_NFT_ADDRESS }} >> .env
             echo BSC_TEST_AUCTION_ADDRESS=${{ secrets.BSC_TEST_AUCTION_ADDRESS }} >> .env
