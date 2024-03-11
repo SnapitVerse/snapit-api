@@ -48,7 +48,7 @@ async fn main() {
     // GET endpoint at /
     let get_route = warp::get()
         .and(warp::path::end())
-        .map(|| warp::reply::json(&"Welcome to the Rust API!"));
+        .map(|| warp::reply::json(&"Welcome to the SnapitWorld API!"));
 
     // POST endpoint at /echo
     let post_route = warp::post()
