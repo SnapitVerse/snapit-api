@@ -18,7 +18,7 @@ jobs:
 
       - name: Create .env file
         run: |
-          cd home/ubuntu/snapit-api
+          cd /home/ubuntu/snapit-api
           echo ETH_SEPOLIA_NFT_ADDRESS=${{ secrets.ETH_SEPOLIA_NFT_ADDRESS }} > .env
           echo BSC_TEST_NFT_ADDRESS=${{ secrets.BSC_TEST_NFT_ADDRESS }} >> .env
           echo BSC_TEST_AUCTION_ADDRESS=${{ secrets.BSC_TEST_AUCTION_ADDRESS }} >> .env
