@@ -30,6 +30,8 @@ jobs:
           echo GRAPH_URL_TOKEN=${{ secrets.GRAPH_URL_TOKEN }} >> .env
           echo GRAPH_URL_AUCTION=${{ secrets.GRAPH_URL_AUCTION }} >> .env
           echo ETHERSCAN_API_KEY=${{ secrets.ETHERSCAN_API_KEY }} >> .env
+          echo MONGO_ATLAS_USERNAME=${{ secrets.MONGO_ATLAS_USERNAME }} >> .env
+          echo MONGO_ATLAS_PASSWORD=${{ secrets.MONGO_ATLAS_PASSWORD }} >> .env
 
       - name: Deploy to EC2
         run: |
