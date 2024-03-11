@@ -1,3 +1,9 @@
+name: Deploy to Amazon EC2
+
+on:
+  push:
+    branches: ["dev"]
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
