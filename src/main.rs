@@ -26,7 +26,9 @@ async fn main() {
     let config = constants::Constants::new();
     let config = Arc::new(config);
 
-    let mongo_client = db::mongo::init_db().await.expect("Failed to initialize DB");
+    let mongo_client = db::mongo::init_db(config.clone())
+        .await
+        .expect("Failed to initialize DB");
     let mongo_client = Arc::new(mongo_client);
 
     let provider = Provider::<Http>::try_from(config.chain_url.as_str()).unwrap();

@@ -1,19 +1,33 @@
 use anyhow::Result;
 use futures::TryStreamExt;
 use mongodb::bson::{self, doc};
-use mongodb::options::FindOneOptions;
+use mongodb::options::{FindOneOptions, ServerApi, ServerApiVersion};
 use mongodb::{options::ClientOptions, Client};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
 
+use crate::constants::Constants;
+
 const COLLECTION_NAME: &str = "snapit-nft-testnet";
 const SETTINGS_COLLECTION_NAME: &str = "settings";
 
-pub async fn init_db() -> Result<Client> {
-    let mongo_uri = "mongodb://localhost:27017";
-    let client_options = ClientOptions::parse(mongo_uri).await?;
+pub async fn init_db(config: Arc<Constants>) -> Result<Client> {
+    let mongo_uri = format!("mongodb+srv://{}:{}@test-snapit-api.zowevot.mongodb.net/?retryWrites=true&w=majority&appName=test-snapit-api", config.mongo_atlas_username, config.mongo_atlas_password);
+
+    let mut client_options = ClientOptions::parse(mongo_uri).await?;
+
+    // Set the server_api field of the client_options object to set the version of the Stable API on the client
+    let server_api = ServerApi::builder().version(ServerApiVersion::V1).build();
+    client_options.server_api = Some(server_api);
+    // Get a handle to the cluster
     let client = Client::with_options(client_options)?;
+    // Ping the server to see if you can connect to the cluster
+    client
+        .database("admin")
+        .run_command(doc! {"ping": 1}, None)
+        .await?;
+    println!("Pinged your deployment. You successfully connected to MongoDB!");
 
     Ok(client)
 }

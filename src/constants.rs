@@ -9,6 +9,8 @@ pub struct Constants {
     pub graph_url_token: String,
     pub graph_url_auction: String, // Add other typed environment variables here
     pub etherscan_api_key: String,
+    pub mongo_atlas_username: String,
+    pub mongo_atlas_password: String,
 }
 
 impl Constants {
@@ -31,6 +33,10 @@ impl Constants {
                 .expect("GRAPH_URL_AUCTION must be set"),
             etherscan_api_key: env::var("ETHERSCAN_API_KEY")
                 .expect("ETHERSCAN_API_KEY must be set"),
+            mongo_atlas_username: env::var("MONGO_ATLAS_USERNAME")
+                .expect("MONGO_ATLAS_USERNAME must be set"),
+            mongo_atlas_password: env::var("MONGO_ATLAS_PASSWORD")
+                .expect("MONGO_ATLAS_PASSWORD must be set"),
             // Initialize other environment variables here
         }
     }
