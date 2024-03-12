@@ -20,19 +20,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@13.50.252.165 << 'EOF'
             cd /home/ubuntu/snapit-api
-            echo ETH_SEPOLIA_NFT_ADDRESS=${{ secrets.ETH_SEPOLIA_NFT_ADDRESS }} > .env
-            echo BSC_TEST_NFT_ADDRESS=${{ secrets.BSC_TEST_NFT_ADDRESS }} >> .env
-            echo BSC_TEST_AUCTION_ADDRESS=${{ secrets.BSC_TEST_AUCTION_ADDRESS }} >> .env
-            echo PRIVATE_KEY=${{ secrets.PRIVATE_KEY }} >> .env
-            echo BNC_TEST_CHAIN_URL=${{ secrets.BNC_TEST_CHAIN_URL }} >> .env
-            echo BNC_TEST_CHAIN_ID=${{ secrets.BNC_TEST_CHAIN_ID }} >> .env
-            echo ETH_SEPOLIA_CHAIN_URL=${{ secrets.ETH_SEPOLIA_CHAIN_URL }} >> .env
-            echo ETH_SEPOLIA_CHAIN_ID=${{ secrets.ETH_SEPOLIA_CHAIN_ID }} >> .env
-            echo GRAPH_URL_TOKEN=${{ secrets.GRAPH_URL_TOKEN }} >> .env
-            echo GRAPH_URL_AUCTION=${{ secrets.GRAPH_URL_AUCTION }} >> .env
-            echo ETHERSCAN_API_KEY=${{ secrets.ETHERSCAN_API_KEY }} >> .env
-            echo MONGO_ATLAS_USERNAME=${{ secrets.MONGO_ATLAS_USERNAME }} >> .env
-            echo MONGO_ATLAS_PASSWORD=${{ secrets.MONGO_ATLAS_PASSWORD }} >> .env
+            echo "${{ secrets.TEST_ENV }}" > .env
             git pull
             cargo build --release
             
