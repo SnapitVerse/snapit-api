@@ -47,8 +47,8 @@ pub async fn get_owner_tokens_handler(
         // .filter_map(|tb| tb["token"].as_object())
         .map(|nft| {
             serde_json::json!({
-                "token_id": nft["token_id"],
-                "metadata": nft["metadata"]
+                "token_id": nft.token_id,
+                "metadata": nft.metadata
             })
         })
         .collect();

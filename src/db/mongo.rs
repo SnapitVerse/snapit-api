@@ -80,7 +80,7 @@ pub async fn contract_metadata(client: Arc<Client>) -> Result<Option<Value>> {
     }
 }
 
-pub async fn find_one_nft(client: Arc<Client>, token_id: u64) -> Result<Option<Value>> {
+pub async fn find_one_nft(client: Arc<Client>, token_id: u64) -> Result<Option<DBNFTWithoutId>> {
     let collection = client
         .database("snapit")
         .collection::<bson::Document>(COLLECTION_NAME);
@@ -101,14 +101,14 @@ pub async fn find_one_nft(client: Arc<Client>, token_id: u64) -> Result<Option<V
             .as_document()
             .ok_or_else(|| anyhow::anyhow!("Failed to convert BSON to Document"))?
             .clone();
-        let json_value: serde_json::Value = bson::Bson::Document(metadata_json).into();
+        let json_value: DBNFTWithoutId = bson::from_document(metadata_json)?;
         Ok(Some(json_value))
     } else {
         Ok(None)
     }
 }
 
-pub async fn find_nfts(client: Arc<Client>, token_ids: Vec<u64>) -> Result<Vec<Value>> {
+pub async fn find_nfts(client: Arc<Client>, token_ids: Vec<u64>) -> Result<Vec<DBNFTWithoutId>> {
     let collection = client
         .database("snapit")
         .collection::<bson::Document>(COLLECTION_NAME);
@@ -131,7 +131,7 @@ pub async fn find_nfts(client: Arc<Client>, token_ids: Vec<u64>) -> Result<Vec<V
             .as_document()
             .ok_or_else(|| anyhow::anyhow!("Failed to convert BSON to Document"))?
             .clone();
-        let json_value: Value = bson::Bson::Document(metadata_json).into();
+        let json_value: DBNFTWithoutId = bson::from_document(metadata_json)?;
         results.push(json_value);
     }
 
@@ -140,15 +140,15 @@ pub async fn find_nfts(client: Arc<Client>, token_ids: Vec<u64>) -> Result<Vec<V
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Metadata {
-    name: String,
-    description: String,
-    image: String,
-    external_url: String,
-    attributes: Vec<MetadataAttribute>, // Add other fields as necessary
+    pub name: String,
+    pub description: String,
+    pub image: String,
+    pub external_url: String,
+    pub attributes: Vec<MetadataAttribute>, // Add other fields as necessary
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct MetadataAttribute {
+pub struct MetadataAttribute {
     trait_type: String,
     display_type: Option<String>,
     value: Value,
@@ -166,5 +166,13 @@ pub struct DBNFT {
     _id: bson::oid::ObjectId,
     token_id: String,
     metadata: Metadata,
+    // other fields...
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DBNFTWithoutId {
+    // fields corresponding to your MongoDB collection
+    pub token_id: String,
+    pub metadata: Metadata,
     // other fields...
 }

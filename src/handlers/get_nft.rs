@@ -1,9 +1,8 @@
-use crate::db::mongo::{contract_metadata, find_one_nft};
+use crate::db::mongo::{contract_metadata, find_one_nft, MetadataAttribute};
 use crate::graph::graph::{graphql_token_owner_query, reqwest_graphql_query};
 use anyhow::anyhow;
 use mongodb::Client;
-use serde::Deserialize;
-use serde_json::{self};
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use warp::http::StatusCode;
 
@@ -12,7 +11,19 @@ use crate::ServerError;
 
 #[derive(Deserialize)]
 pub struct GetNftQueryParams {
+    with_id: Option<String>,
     with_owner: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GetNFTResult {
+    token_id: Option<String>,
+    owner: Option<String>,
+    name: String,
+    description: String,
+    image: String,
+    external_url: String,
+    attributes: Vec<MetadataAttribute>, // Add other fields as necessary
 }
 
 pub async fn get_nft(
@@ -21,6 +32,7 @@ pub async fn get_nft(
     params: GetNftQueryParams,
     config: Arc<Constants>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
+    let with_id = params.with_id.map(|v| v == "true").unwrap_or(false);
     let with_owner = params.with_owner.map(|v| v == "true").unwrap_or(false);
 
     let id_str = id_json.trim_end_matches(".json");
@@ -44,7 +56,20 @@ pub async fn get_nft(
             // If parsing succeeds, proceed with your logic using `token_id`
             match find_one_nft(client, token_id as u64).await {
                 // Cast to u64 if needed
-                Ok(Some(mut metadata)) => {
+                Ok(Some(token)) => {
+                    let mut get_nft_result = GetNFTResult {
+                        token_id: None,
+                        owner: None,
+                        name: token.metadata.name,
+                        description: token.metadata.description,
+                        image: token.metadata.image,
+                        external_url: token.metadata.external_url,
+                        attributes: token.metadata.attributes,
+                    };
+                    if with_id {
+                        get_nft_result.token_id = Some(token_id.to_string());
+                    }
+
                     if with_owner {
                         let query = graphql_token_owner_query(id_str);
 
@@ -61,15 +86,10 @@ pub async fn get_nft(
                             None => "default",
                         };
 
-                        if let Some(metadata_map) = metadata.as_object_mut() {
-                            metadata_map.insert(
-                                "owner".to_string(),
-                                serde_json::Value::String(owner_address.to_string()),
-                            );
-                        }
+                        get_nft_result.owner = Some(owner_address.to_string());
                     }
                     Ok(warp::reply::with_status(
-                        warp::reply::json(&metadata),
+                        warp::reply::json(&get_nft_result),
                         StatusCode::OK,
                     ))
                 }
