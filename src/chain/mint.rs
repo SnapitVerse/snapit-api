@@ -27,7 +27,7 @@ pub async fn mint_nft(
     let token_id = U256::from(req.token_id);
 
     let contract_call = contract.method::<_, H256>(
-        "mintUniqueToken",
+        "mint",
         (owner_address, token_id, data_bytes.clone()),
     )?;
 
