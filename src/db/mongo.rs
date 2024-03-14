@@ -6,6 +6,7 @@ use mongodb::{options::ClientOptions, Client};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
+use warp::filters::body::json;
 
 use crate::constants::Constants;
 
@@ -52,14 +53,14 @@ pub async fn add_nft(client: Arc<Client>, token: AddNFTInput) -> Result<()> {
     Ok(())
 }
 
-pub async fn contract_metadata(client: Arc<Client>) -> Result<Option<Value>> {
+pub async fn contract_metadata(client: Arc<Client>) -> Result<Option<ContractMetadata>> {
     let collection = client
         .database("snapit")
         .collection::<bson::Document>(SETTINGS_COLLECTION_NAME);
 
     let filter = doc! { "type": "contract-metadata", "version": "0.0.1" };
     let find_option: FindOneOptions = FindOneOptions::builder()
-        .projection(doc! { "_id": 0 })
+        .projection(doc! { "_id": 0, "type": 0, "version": 0 })
         .build();
     let result = collection
         .find_one(filter, find_option)
@@ -73,8 +74,8 @@ pub async fn contract_metadata(client: Arc<Client>) -> Result<Option<Value>> {
             .as_document()
             .ok_or_else(|| anyhow::anyhow!("Failed to convert BSON to Document"))?
             .clone();
-        let json_value: serde_json::Value = bson::Bson::Document(metadata_json).into();
-        Ok(Some(json_value))
+        let json_value: SettingsContractMetadata = bson::from_document(metadata_json)?;
+        Ok(Some(json_value.metadata))
     } else {
         Ok(None)
     }
@@ -136,6 +137,20 @@ pub async fn find_nfts(client: Arc<Client>, token_ids: Vec<u64>) -> Result<Vec<D
     }
 
     Ok(results)
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ContractMetadata {
+    pub name: String,
+    pub description: String,
+    pub image: String,
+    pub external_link: String,
+    pub collaborators: Vec<String>, // Add other fields as necessary
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SettingsContractMetadata {
+    pub metadata: ContractMetadata,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
