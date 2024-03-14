@@ -10,7 +10,7 @@ use std::sync::Arc;
 use super::chain::{get_ethers_client, send_transaction, SendTransactionResult};
 use super::helpers::object_to_data_bytes; // Import the `mongo` module
 
-const ABI_PATH: &[u8; 8420] = include_bytes!("../abi/SnapitNFT.json");
+const ABI_PATH: &[u8; 13447] = include_bytes!("../abi/SnapitNFT.json");
 
 pub async fn mint_nft(
     req: MintUniqueTokenRequest,
@@ -22,14 +22,11 @@ pub async fn mint_nft(
     let contract_address = Address::from_str(config.nft_address.as_str()).unwrap();
     let contract = Contract::new(contract_address, abi, ethers_client);
 
-    let data_bytes = object_to_data_bytes(req.metadata);
+    // let data_bytes = object_to_data_bytes(req.metadata);
     let owner_address = Address::from_str(&req.owner_address).unwrap();
     let token_id = U256::from(req.token_id);
 
-    let contract_call = contract.method::<_, H256>(
-        "mint",
-        (owner_address, token_id, data_bytes.clone()),
-    )?;
+    let contract_call = contract.method::<_, H256>("mint", (owner_address, token_id))?;
 
     let wait_confirmation = req.wait_confirmation.unwrap_or(true);
 
