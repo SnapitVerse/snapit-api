@@ -8,7 +8,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use super::chain::{get_ethers_client, send_transaction, SendTransactionResult};
-use super::helpers::object_to_data_bytes; // Import the `mongo` module
+// use super::helpers::object_to_data_bytes; // Import the `mongo` module
 
 const ABI_PATH: &[u8; 13447] = include_bytes!("../abi/SnapitNFT.json");
 
