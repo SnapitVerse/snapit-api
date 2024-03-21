@@ -6,7 +6,7 @@ pub struct Constants {
     pub private_key: String,
     pub chain_url: String,
     pub chain_id: u64,
-    pub graph_url_token: String,
+    pub graph_url_nft: String,
     pub graph_url_auction: String, // Add other typed environment variables here
     pub etherscan_api_key: String,
     pub mongo_atlas_username: String,
@@ -28,7 +28,7 @@ impl Constants {
                 .expect("ETH_SEPOLIA_CHAIN_ID must be set")
                 .parse()
                 .expect("ETH_SEPOLIA_CHAIN_ID should be an integer"),
-            graph_url_token: env::var("GRAPH_URL_TOKEN").expect("GRAPH_URL_TOKEN must be set"),
+            graph_url_nft: env::var("GRAPH_URL_NFT").expect("GRAPH_URL_NFT must be set"),
             graph_url_auction: env::var("GRAPH_URL_AUCTION")
                 .expect("GRAPH_URL_AUCTION must be set"),
             etherscan_api_key: env::var("ETHERSCAN_API_KEY")

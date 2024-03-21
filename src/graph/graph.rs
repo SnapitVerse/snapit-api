@@ -5,7 +5,7 @@ use crate::ServerError;
 pub fn graphql_owner_tokens_query(owner_address: &str) -> String {
     format!(
         r#"{{
-            tokenBalances(where: {{owner: "{}"}}) {{
+          tokenOwnerships(where: {{owner: "{}"}}) {{
               token {{
                 id
                 metadataUri
@@ -19,7 +19,7 @@ pub fn graphql_owner_tokens_query(owner_address: &str) -> String {
 pub fn graphql_token_owner_query(token_id: &str) -> String {
     format!(
         r#"{{
-          tokenBalances(where: {{token_: {{id: {}}}}}) {{
+          tokenOwnerships(where: {{token_: {{id: {}}}}}) {{
             owner
           }}
         }}"#,

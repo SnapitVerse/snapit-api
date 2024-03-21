@@ -74,9 +74,9 @@ pub async fn get_nft(
                         let query = graphql_token_owner_query(id_str);
 
                         let res =
-                            reqwest_graphql_query(query, config.graph_url_token.as_str()).await?;
+                            reqwest_graphql_query(query, config.graph_url_nft.as_str()).await?;
 
-                        let token_balances = res["data"]["tokenBalances"]
+                        let token_balances = res["data"]["tokenOwnerships"]
                             .as_array()
                             .ok_or("Invalid response format")
                             .map_err(|e| warp::reject::custom(ServerError::from(anyhow!(e))))?;

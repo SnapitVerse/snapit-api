@@ -23,9 +23,9 @@ pub async fn get_owner_tokens_handler(
     let owner_address = params.owner_address;
     let query = graphql_owner_tokens_query(&owner_address);
 
-    let res = reqwest_graphql_query(query, config.graph_url_token.as_str()).await?;
+    let res = reqwest_graphql_query(query, config.graph_url_nft.as_str()).await?;
 
-    let token_balances = res["data"]["tokenBalances"]
+    let token_balances = res["data"]["tokenOwnerships"]
         .as_array()
         .ok_or("Invalid response format")
         .map_err(|e| warp::reject::custom(ServerError::from(anyhow!(e))))?;
