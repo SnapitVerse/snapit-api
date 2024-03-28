@@ -1,54 +1,24 @@
 # Snapit API
 
-This project provides API for interacting with Snapit contracts.
+This project provides API for interacting with Snapit Token and NFTs.
 
-### Prerequisites:
+#### Prerequisites:
 
 - Install Rust https://www.rust-lang.org/tools/install
-- Install Mongodb
 
-### To install Mongodb:
-
-```
-brew tap mongodb/brew
-brew update
-brew install mongodb-community@7.0
-```
-
-### To run/stop Mongodb:
-
-```
-brew services start mongodb-community@7.0
-brew services stop mongodb-community@7.0
-```
-
-### To run API:
+#### To run API:
 
 ```
 cargo build
 cargo run
 ```
 
-To test API a tool like curl or an app like Postman can be used.
+Test environment is deployed to: [Snapit Test API](https://test-api.snapit.world).
 
-Sample requests:
+Use [SwaggerUI](https://test-api.snapit.world/swagger-ui) for testing endpoints. (Use "Bearer APITEST" for authorization if you don't have api key).
 
-```
-curl --location 'http://localhost:3030/mint_nft' \
---header 'Content-Type: application/json' \
---data '{
-    "owner_address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-    "token_id": 5,
-    "metadata": {
-        "name": "nftname!"
-    }
-}'
-```
+To generate and open rust doc, run:
 
 ```
-curl --location 'http://localhost:3030/get_nft_metadata/1'
-```
-
-```
-curl --location 'http://localhost:3030/get-owner-tokens?owner_address=0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266'
+cargo doc --open
 ```
