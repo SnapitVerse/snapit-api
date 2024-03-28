@@ -1,4 +1,6 @@
-use std::env;
+use std::{env, sync::Arc};
+
+use warp::Filter;
 
 pub struct Constants {
     pub nft_address: String,
@@ -11,6 +13,8 @@ pub struct Constants {
     pub etherscan_api_key: String,
     pub mongo_atlas_username: String,
     pub mongo_atlas_password: String,
+    pub alchemy_api_key: String,
+    pub jwt_secret: String,
 }
 
 impl Constants {
@@ -37,7 +41,15 @@ impl Constants {
                 .expect("MONGO_ATLAS_USERNAME must be set"),
             mongo_atlas_password: env::var("MONGO_ATLAS_PASSWORD")
                 .expect("MONGO_ATLAS_PASSWORD must be set"),
+            alchemy_api_key: env::var("ALCHEMY_API_KEY").expect("ALCHEMY_API_KEY must be set"),
+            jwt_secret: env::var("JWT_SECRET").expect("JWT_SECRET must be set"),
             // Initialize other environment variables here
         }
     }
+}
+
+pub fn with_config(
+    config: Arc<Constants>,
+) -> impl Filter<Extract = (Arc<Constants>,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || config.clone())
 }
