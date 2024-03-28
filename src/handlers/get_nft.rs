@@ -7,7 +7,7 @@ use std::sync::Arc;
 use warp::http::StatusCode;
 
 use crate::constants::Constants;
-use crate::ServerError;
+use crate::error::ServerError;
 
 #[derive(Deserialize)]
 pub struct GetNftQueryParams {
@@ -31,6 +31,7 @@ pub async fn get_nft(
     id_json: String, // Ensure this matches the type expected by your MongoDB function
     params: GetNftQueryParams,
     config: Arc<Constants>,
+    _auth_id: String,
 ) -> Result<impl warp::Reply, warp::Rejection> {
     let with_id = params.with_id.map(|v| v == "true").unwrap_or(false);
     let with_owner = params.with_owner.map(|v| v == "true").unwrap_or(false);

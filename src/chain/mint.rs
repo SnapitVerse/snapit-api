@@ -1,6 +1,7 @@
 use crate::constants::Constants;
+use crate::error::ServerError;
 use crate::handlers::mint_nft::MintUniqueTokenRequest;
-use crate::ServerError;
+
 use ethers::abi::{Abi, Address};
 use ethers::prelude::*;
 use serde_json::{self};

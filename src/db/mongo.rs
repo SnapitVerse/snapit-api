@@ -6,6 +6,8 @@ use mongodb::{options::ClientOptions, Client};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
+use utoipa::ToSchema;
+use warp::Filter;
 
 use crate::constants::Constants;
 
@@ -30,6 +32,12 @@ pub async fn init_db(config: Arc<Constants>) -> Result<Client> {
     println!("Pinged your deployment. You successfully connected to MongoDB!");
 
     Ok(client)
+}
+
+pub fn with_mongo_client(
+    client: Arc<Client>,
+) -> impl Filter<Extract = (Arc<Client>,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || client.clone())
 }
 
 pub async fn add_nft(client: Arc<Client>, token: AddNFTInput) -> Result<()> {
@@ -152,7 +160,7 @@ pub struct SettingsContractMetadata {
     pub metadata: ContractMetadata,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct Metadata {
     pub name: String,
     pub description: String,
@@ -161,14 +169,14 @@ pub struct Metadata {
     pub attributes: Vec<MetadataAttribute>, // Add other fields as necessary
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct MetadataAttribute {
     trait_type: String,
     display_type: Option<String>,
     value: Value,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
 pub struct AddNFTInput {
     pub token_id: u64,
     pub metadata: Metadata,

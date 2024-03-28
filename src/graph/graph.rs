@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use crate::ServerError;
+use crate::error::ServerError;
 
 pub fn graphql_owner_tokens_query(owner_address: &str) -> String {
     format!(

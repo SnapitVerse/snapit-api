@@ -1,3 +1,4 @@
+use crate::error::ServerError;
 use crate::graph::graph::{graphql_auction_bid_query, reqwest_graphql_query};
 use anyhow::anyhow;
 use ethers::prelude::*;
@@ -8,7 +9,6 @@ use std::sync::Arc;
 use warp::http::StatusCode;
 
 use crate::constants::Constants;
-use crate::ServerError;
 
 #[derive(Deserialize)]
 pub struct GetAuctionQueryParams {
@@ -26,6 +26,7 @@ pub async fn get_auction(
     ethers_client: Arc<SignerMiddleware<Provider<Http>, LocalWallet>>,
     params: GetAuctionQueryParams,
     config: Arc<Constants>,
+    _auth_id: String,
 ) -> Result<impl warp::Reply, warp::Rejection> {
     let contract_address = Address::from_str(config.auction_address.as_str()).unwrap();
 
