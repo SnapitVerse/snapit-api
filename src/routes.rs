@@ -14,7 +14,7 @@ use std::convert::Infallible;
 use std::sync::Arc;
 
 use crate::handlers::get_auction::{get_auction, GetAuctionQueryParams};
-use crate::handlers::get_nft::{get_nft, GetNftQueryParams};
+use crate::handlers::get_nft::{get_nft_handler, GetNftQueryParams};
 use crate::handlers::get_nft_sales::{get_nft_sales_handler, GetNFTMarketSalesQueryParams};
 use crate::handlers::get_owner_tokens::{get_owner_tokens_handler, GetOwnerTokensQueryParams};
 use crate::handlers::mint_nft::mint_nft_handler;
@@ -61,7 +61,7 @@ pub fn routes(
         .and(warp::query::<GetNftQueryParams>()) // Use query to capture with_owner
         .and(config_filter.clone())
         .and(with_auth())
-        .and_then(get_nft);
+        .and_then(get_nft_handler);
 
     let get_owner_tokens_route = warp::get()
         .and(mongo_client_filter.clone())

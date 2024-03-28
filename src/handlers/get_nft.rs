@@ -4,18 +4,20 @@ use anyhow::anyhow;
 use mongodb::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::{IntoParams, ToResponse, ToSchema};
 use warp::http::StatusCode;
 
 use crate::constants::Constants;
 use crate::error::ServerError;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct GetNftQueryParams {
     with_id: Option<String>,
     with_owner: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ToResponse, ToSchema)]
 pub struct GetNFTResult {
     token_id: Option<String>,
     owner: Option<String>,
@@ -26,7 +28,21 @@ pub struct GetNFTResult {
     attributes: Vec<MetadataAttribute>, // Add other fields as necessary
 }
 
-pub async fn get_nft(
+#[utoipa::path(
+    get,
+    path = "/api/token/{id}.json",
+    params(
+        ("id" = i32, Path, description = "NFT ID"),
+        GetNftQueryParams
+    ),
+    responses(
+        (status = 200, description = "Returns NFT Detail", body = [GetNFTResult])
+    ),
+    security(
+        ("api_key" = [])
+    )
+)]
+pub async fn get_nft_handler(
     client: Arc<Client>,
     id_json: String, // Ensure this matches the type expected by your MongoDB function
     params: GetNftQueryParams,

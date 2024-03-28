@@ -1,6 +1,10 @@
 use std::sync::Arc;
 
 
+use utoipa::openapi::security::ApiKey;
+use utoipa::openapi::security::ApiKeyValue;
+use utoipa::openapi::security::SecurityScheme;
+use utoipa::Modify;
 use utoipa::OpenApi;
 
 use warp::{
@@ -21,26 +25,44 @@ use crate::routes::{EchoRequest, EchoResponse};
 //     swagger_ui: warp::filters::BoxedFilter<(impl warp::Reply,)>,
 // }
 
-pub struct OpenAPIRoutes;
+pub struct OpenAPIRoutes{}
 
 impl OpenAPIRoutes {
 
     pub fn openapi_json() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         #[derive(OpenApi)]
         #[openapi(
-            paths(handlers::get_owner_tokens::get_owner_tokens_handler, handlers::mint_nft::mint_nft_handler),
+            paths(handlers::get_owner_tokens::get_owner_tokens_handler,
+                handlers::get_nft::get_nft_handler,
+                handlers::get_nft_sales::get_nft_sales_handler,
+                handlers::mint_nft::mint_nft_handler ),
             components(
                 schemas(EchoRequest, EchoResponse, 
-                    handlers::mint_nft::MintNFTSuccessResponse, handlers::mint_nft::MintUniqueTokenRequest, 
+                    handlers::mint_nft::MintNFTSuccessResponse, handlers::mint_nft::MintUniqueTokenRequest,
+                    handlers::get_nft::GetNFTResult, 
                     db::mongo::Metadata, db::mongo::AddNFTInput, db::mongo::MetadataAttribute,
                     chain::chain::SendTransactionResult, chain::chain::TxHashSchema, chain::chain::TransactionReceiptSchema)
             ),
-            // modifiers(&SecurityAddon),
+            modifiers(&SecurityAddon),
             // tags(
             //     (name = "todo", description = "Todo items management API")
             // )
         )]
+
         struct ApiDoc;
+
+        struct SecurityAddon;
+
+        impl Modify for SecurityAddon {
+            fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+                let components = openapi.components.as_mut().unwrap(); // we can unwrap safely since there already is components registered.
+                components.add_security_scheme(
+                    "api_key",
+                    SecurityScheme::ApiKey(ApiKey::Header(ApiKeyValue::with_description("Authorization", r#" Use "Bearer APITEST" for testing."#))),
+                )
+            }
+        }
+    
         warp::path!("api" / "docs" / "openapi.json").map(|| {
             let openapi: utoipa::openapi::OpenApi = ApiDoc::openapi();
             warp::reply::json(&openapi)

@@ -23,6 +23,9 @@ pub struct GetOwnerTokensQueryParams {
     params(GetOwnerTokensQueryParams),
     responses(
         (status = 200, description = "Returns all NFTs owned by address", body = [Value])
+    ),
+    security(
+        ("api_key" = [])
     )
 )]
 pub async fn get_owner_tokens_handler(
