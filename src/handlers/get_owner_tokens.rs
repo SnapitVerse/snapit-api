@@ -1,24 +1,35 @@
 use crate::constants::Constants;
 use crate::db::mongo::find_nfts;
+use crate::error::ServerError;
 use crate::graph::graph::{graphql_owner_tokens_query, reqwest_graphql_query};
-use crate::ServerError;
 use std::sync::Arc;
 
 use anyhow::anyhow;
 use mongodb::Client;
 use serde::Deserialize;
 use serde_json::{self, Value};
+use utoipa::IntoParams;
 use warp::http::StatusCode;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct GetOwnerTokensQueryParams {
     owner_address: String,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/owner-tokens",
+    params(GetOwnerTokensQueryParams),
+    responses(
+        (status = 200, description = "Returns all NFTs owned by address", body = [Value])
+    )
+)]
 pub async fn get_owner_tokens_handler(
     client: Arc<Client>,
     params: GetOwnerTokensQueryParams,
     config: Arc<Constants>,
+    _auth_id: String,
 ) -> Result<impl warp::Reply, warp::Rejection> {
     let owner_address = params.owner_address;
     let query = graphql_owner_tokens_query(&owner_address);

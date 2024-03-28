@@ -2,14 +2,15 @@ use crate::chain::chain::SendTransactionResult;
 use crate::chain::mint::mint_nft;
 use crate::constants::Constants;
 use crate::db::mongo::{add_nft, AddNFTInput, Metadata};
-use crate::ServerError;
+use crate::error::ServerError;
 use mongodb::bson::doc;
 use mongodb::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 use warp::http::StatusCode;
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, ToSchema)]
 pub struct MintUniqueTokenRequest {
     pub owner_address: String,
     pub token_id: u64,
@@ -17,10 +18,20 @@ pub struct MintUniqueTokenRequest {
     pub wait_confirmation: Option<bool>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/mint",
+    request_body = MintUniqueTokenRequest,
+    responses(
+        (status = 200, description = "Mint NFT successfully", body = MintNFTSuccessResponse), // Define MintNftResponse struct with ToSchema
+        (status = 400, description = "Bad Request"),
+    )
+)]
 pub async fn mint_nft_handler(
     req: MintUniqueTokenRequest,
     mongo_client: Arc<Client>,
     config: Arc<Constants>,
+    _auth_id: String,
 ) -> Result<impl warp::Reply, warp::Rejection> {
     let tx_result = mint_nft(req.clone(), config)
         .await
@@ -46,8 +57,8 @@ pub async fn mint_nft_handler(
     }
 }
 
-#[derive(Serialize)]
-struct MintNFTSuccessResponse {
+#[derive(Serialize, ToSchema)]
+pub struct MintNFTSuccessResponse {
     nft_details: AddNFTInput, // Replace `YourNftDetailsType` with the actual type
     tx_result: SendTransactionResult,
 }
